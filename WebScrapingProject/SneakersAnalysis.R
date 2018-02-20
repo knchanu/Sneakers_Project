@@ -18,6 +18,7 @@ library(chron)
 library(scales)
 library(ggrepel)
 library(forcats)
+library(plotrix)
 library(ggthemes)
 
 ########### Import the datasets ##########
@@ -38,7 +39,7 @@ TotalSales$Brand <- gsub("Air Jordan", "Nike", TotalSales$Brand)
 
 Sneakers = rbind(Adidas_Yeezy, Nike_AirJordan)
 
-########### Dates ###########
+########### Dates ##############
 
 Sneakers$Release_Date = mdy(Sneakers$Release_Date)
 
@@ -46,8 +47,8 @@ Sneakers$Date_of_Sale =  as.Date(Sneakers$Date_of_Sale, format = "%A, %B %d, %Y"
 
 Sneakers$Weekdays_of_Sale = weekdays(Sneakers$Date_of_Sale)
 
-##Overall Sales: 
-  
+########### Overall Sales ########### 
+
 #1a. Which brand sold the most pair of sneakers? 
 
 OverallSalesPerBrand = TotalSales %>% group_by(Brand) %>% summarise(SumTS= sum(Total_Sales))
@@ -69,25 +70,18 @@ OverallSalesPerSneaker_plot = ggplot(OverallSalesPerSneaker, aes(x = Model, y = 
   facet_grid(. ~Brand) +
   theme(strip.text.y = element_text(angle = 0)) +
   labs(x = 'Brand (Adidas Yeezy vs. Nike Air Jordan)', y = 'Total Sales', title = "Overall Sales of Each Sneaker") + 
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 2))
+
 
 OverallSalesPerSneaker_plot = ggplotly(OverallSalesPerSneaker_plot)
 
 OverallSalesPerSneaker_plot
 
+########### Price Analysis ########### 
 
-#OverallSales_Arranged_Date_of_Sale = dplyr::arrange(Sneakers, Date_of_Sale)
-
-#Price Analysis: 
-  
-  #EDA
 #2a. Graph for different brands. Model_name vs average price
 #Price vs total sales for each (graph with different lines for each model with legend)
-  
-
-##Differentiating Factor(s):
-
-  #Price
 
 Sneakers$Retail_Price = gsub("\\$", "", Sneakers$Retail_Price)
 Sneakers$Retail_Price = gsub(",", "", Sneakers$Retail_Price)
@@ -105,53 +99,113 @@ Sneakers$Price_Premium = gsub("\\%", "", Sneakers$Price_Premium)
 Sneakers$Price_Premium = as.numeric(Sneakers$Price_Premium)
 
 
-H = Sneakers %>% group_by(Brand) %>%
+Mean_SalePrice_PricePremium = Sneakers %>% group_by(Brand) %>%
   summarise(AverageSalePrice=mean(Sale_Price), AveragePremiumPercent=mean(Price_Premium))
-H
+Mean_SalePrice_PricePremium
+
+#Box Plot of Brand vs. Sale Price for both brands
+
+ggplot(Sneakers, aes(x=Brand, y=Sale_Price, fill=Brand)) +
+  geom_boxplot() + 
+  labs(x='Brand', y = 'Sale Price', title = 'Box Plot of Sale Price by Brand') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Bar chart of Brand vs. Average Sale 
 
 PriceComparisonPremium = ggplot(H, aes(Brand, AveragePremiumPercent)) +   
   geom_bar(aes(fill = Brand), position = "dodge", stat="identity") + 
-  labs(x = 'Brand (Adidas Yeezy vs. Nike Air Jordan)', y = 'Average Sale Price') + 
+  labs(x = 'Brand (Adidas Yeezy vs. Nike Air Jordan)', y = 'Average Premium Price') + 
   theme(plot.title = element_text(hjust = 0.5))
-
 
 PriceComparisonPremium 
 
+
+
 PriceComparisonSale = ggplot(H, aes(Brand, AverageSalePrice)) +   
   geom_bar(aes(fill = Brand), position = "dodge", stat="identity") +
-  labs(x = 'Brand (Adidas Yeezy vs. Nike Air Jordan)', y = 'Average Premium Price') + 
+  labs(x = 'Brand (Adidas Yeezy vs. Nike Air Jordan)', y = 'Average Sale Price') + 
   theme(plot.title = element_text(hjust = 0.5))
 
 PriceComparisonSale
 
-  #Sizes: Range of Sizes; 
+########### Range of Sizes ########### 
+
+Sizes_Nike = Sneakers %>% filter(Brand == 'Nike')
+Unique_Sizes_Nike = unique(Sizes_Nike$Sneaker_Size)
+Length_Sizes_Nike = length(Unique_Sizes_Nike)
+
+Unique_Sizes_Nike
+Length_Sizes_Nike
+
+Sizes_Adidas = Sneakers %>% filter(Brand == 'Adidas')
+Unique_Sizes_Adidas = unique(Sizes_Adidas$Sneaker_Size)
+Length_Sizes_Adidas = length(Unique_Sizes_Adidas)     #offers 6 sizes for infants
+
+Unique_Sizes_Adidas
+Length_Sizes_Adidas
+
+#but are the sales generated from these 6 sizes a significant contributor to the total sales? (piechart)
+
+slices <- c(1918, 11783)  #1918 Infant Sneakers i.e roughly 16% of Total Sales    #11783 Adult Sneakers
+lbls <- c("Infant","Adults")
+PieChart = pie3D(slices,labels=lbls,main="Pie Chart of Total Sales: \n Infant vs. Adult Sneakers")
+
+#Creates a new column called Month_Year
+
+setDT(Sneakers)[, Month_Yr := format(as.Date(Date_of_Sale), "%Y-%m") ] 
+
+Sneakers$DateTimeSale = as.POSIXct(paste(Sneakers$Date_of_Sale, Sneakers$Time_of_Sale), format="%Y-%m-%d %H:%M")
+
+#Adidas - Comparison of price premium for each of the 35 top selling with the time they got introduced on the website
+
+FilterSneakersAdidas = Sneakers %>% filter(Brand == "Adidas") %>% group_by(Model)
+
+PP_Time_Adidas = ggplot(FilterSneakersAdidas, aes(x=DateTimeSale , y=Price_Premium, group = Model, color = Model)) +
+  geom_line() + geom_point() + ggtitle("Price Premium Over Time By Model") +
+  labs(x ="Year of Sales on StockX", y = "Price Premium %") +
+  theme(axis.text.x =element_text(angle=45, hjust=1), plot.title = element_text(hjust = 0.5))
+
+PP_Time_Adidas = ggplotly(PP_Time_Adidas)
+PP_Time_Adidas
+
+#Nike - Comparison of price premium for each of the 35 top selling with the time they got introduced on the website
+
+FilterSneakersNike = Sneakers %>% filter(Brand == "Nike") %>% group_by(Model)
+
+PP_Time_Nike = ggplot(FilterSneakersNike, aes(x=DateTimeSale , y=Price_Premium, group = Model, color = Model)) +
+  geom_line() + geom_point() +
+  ggtitle("Price Premium Over Time By Model") +
+  xlab("Year of Sales on StockX")+
+  ylab("Price Premium %")+
+  theme(axis.text.x =element_text(angle=45, hjust=1), plot.title = element_text(hjust = 0.5))
+PP_Time_Nike = ggplotly(PP_Time_Nike)
+
+PP_Time_Nike
 
 
-  #Time: Are the prices so high for Yeezys because they are recent than Air Jordan's? Or is there a steady rate?
-
-Sneakers$MonthYear_Sale= m(Sneakers$Date_of_Sale, "%b %Y")
-
-Sneakers$MonthYear_Sale = as.factor()
+#-----------
 
 
-#B =  Sneakers %>% group_by(Brand, Model) %>% summarise(ASale_Price= mean(Sale_Price)) %>% arrange(desc(ASale_Price))
+### Additional EDA not included in presentation and blog post 
 
-All = Sneakers %>% group_by(Brand) %>% summarise(ASale_Price= mean(Sale_Price))
+#Merge the two data frames, "Total Sales" and "Sneakers" by "Model"
 
-#top10resellPercent = top_n(top10resellPercent,10, avgResellPercentage)
+Merged_df = merge(TotalSales, Sneakers, by = "Model")
+Merged_df = subset(Merged_df, select = -Brand.x )
+names(Merged_df)[names(Merged_df) == 'Brand.y'] = 'Brand'
 
-# g17= ggplot(All, aes(x=Month_Sale, y=ASale_Price, group = Brand, color = Brand)) +
-#   geom_line() + geom_point()+
-#   ggtitle("Resell Price Over Time By Style") +
-#   xlab("Date By Month")+
-#   ylab("Average Resell Price($)")+
-#   theme(axis.text.x =element_text(angle=45, hjust=1), plot.title = element_text(hjust = 0.5))
-# g17
-# 
-# 
-# #TimeSeries1 = Sneakers %>% group_by(Brand)
-# 
-# #TimeSeries1_graph = ggplot(Sneakers, aes(x = Date_of_Sale, y = mean(Sale_Price))) + geom_line() + labs(x = "TBD", y = "TBD")
-# 
-# #TimeSeries1_graph
+#Group by brand, group by month, year, number of observation, mean of the those observations for that brand 
+
+Avg_Sales_PerMonth = Merged_df %>% group_by(Brand, Month_Yr) %>% summarise(xcount = n()) 
+
+Test_201702 = Avg_Sales_PerMonth %>% group_by(Brand) %>% filter(Month_Yr >= '2017-12') %>% summarise(X = sum(xcount))
+
+Test = Avg_Sales_PerMonth %>% group_by(Brand) %>% summarise(M = mean(xcount)) 
+
+testavg = ggplot(Avg_Sales_PerMonth, aes(x = Month_Yr, y = xcount, color = Brand)) + geom_point() + geom_path() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+testavg = ggplotly(testavg)
+
+testavg
+
 
